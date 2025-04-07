@@ -28,9 +28,9 @@ jobs:
           rm -f ~/app.tar.gz
         EOF
 
-    - name: Archive code excluding .git
+    - name: Archive code excluding .git and handle file changes
       run: |
-        tar --exclude='./.git' -czf app.tar.gz .
+        git archive --format=tar.gz --exclude .git -o app.tar.gz HEAD
 
     - name: Copy code archive to VM
       run: |

@@ -1,0 +1,40 @@
+name: Deploy Flask App to Azure VM
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Setup SSH key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.AZURE_VM_KEY }}" > ~/.ssh/server_key.pem
+        chmod 600 ~/.ssh/server_key.pem
+
+    - name: SSH and deploy
+      run: |
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/server_key.pem azureuser@57.151.104.162 << 'EOF'
+          pkill -f decision_tree_regression.py || true
+          cd ~/flask-app || mkdir ~/flask-app && cd ~/flask-app
+          rm -rf *
+          exit
+        EOF
+
+    - name: Copy code to VM
+      run: |
+        scp -o StrictHostKeyChecking=no -i ~/.ssh/server_key.pem -r . azureuser@57.151.104.162:~/flask-app
+
+    - name: Start Flask app
+      run: |
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/server_key.pem azureuser@57.151.104.162 << 'EOF'
+          cd ~/flask-app
+          nohup python3 decision_tree_regression.py > app.log 2>&1 &
+        EOF

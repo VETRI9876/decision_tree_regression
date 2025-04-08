@@ -1,51 +1,33 @@
-name: Deploy Flask App to Azure VM
+name: Deploy Flask App to EC2
 
 on:
   push:
     branches:
-      - main
+      - main  # or master
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Setup SSH key
-      run: |
-        mkdir -p ~/.ssh
-        echo "${{ secrets.AZURE_VM_KEY }}" > ~/.ssh/server_key.pem
-        chmod 600 ~/.ssh/server_key.pem
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
 
-    - name: Clean up existing app on VM
-      run: |
-        ssh -o StrictHostKeyChecking=no -i ~/.ssh/server_key.pem azureuser@57.151.104.162 << 'EOF'
-          pkill -f decision_tree_regression.py || true
-          rm -rf ~/flask-app || true
-          mkdir -p ~/flask-app
-          rm -f ~/app.tar.gz
-        EOF
+      - name: Copy files to EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "mkdir -p ~/flask-app"
+          scp -r -o StrictHostKeyChecking=no * ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~/flask-app
 
-    - name: Archive code excluding .git and handle file changes
-      run: |
-        git archive --format=tar.gz --exclude .git -o app.tar.gz HEAD
-
-    - name: Copy code archive to VM
-      run: |
-        scp -o StrictHostKeyChecking=no -i ~/.ssh/server_key.pem app.tar.gz azureuser@57.151.104.162:~/
-
-    - name: Extract archive on VM
-      run: |
-        ssh -o StrictHostKeyChecking=no -i ~/.ssh/server_key.pem azureuser@57.151.104.162 << 'EOF'
-          tar -xzf ~/app.tar.gz -C ~/flask-app
-          rm ~/app.tar.gz
-        EOF
-
-    - name: Start Flask app
-      run: |
-        ssh -o StrictHostKeyChecking=no -i ~/.ssh/server_key.pem azureuser@57.151.104.162 << 'EOF'
-          cd ~/flask-app
-          nohup python3 decision_tree_regression.py > app.log 2>&1 &
-        EOF
+      - name: Run Flask App on EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+            cd ~/flask-app
+            pip3 install -r requirements.txt
+            nohup python3 decision_tree_regression.py > app.log 2>&1 &
+          EOF

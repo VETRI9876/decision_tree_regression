@@ -3,7 +3,7 @@ name: Deploy Flask App to EC2
 on:
   push:
     branches:
-      - main 
+      - main  # or master
 
 jobs:
   deploy:
@@ -21,13 +21,13 @@ jobs:
 
       - name: Copy files to EC2
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "mkdir -p ~/flask-app"
-          scp -r -o StrictHostKeyChecking=no * ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~/flask-app
+          scp -r -o StrictHostKeyChecking=no . ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~/flask-app
 
       - name: Run Flask App on EC2
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
             cd ~/flask-app
             pip3 install -r requirements.txt
+            pkill -f decision_tree_regression.py || true  # Stop if already running
             nohup python3 decision_tree_regression.py > app.log 2>&1 &
           EOF

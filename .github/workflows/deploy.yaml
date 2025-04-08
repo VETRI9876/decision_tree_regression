@@ -3,15 +3,18 @@ name: Deploy Flask App to EC2
 on:
   push:
     branches:
-      - main
+      - main  # Or your deployment branch
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v3
+
+      - name: Install rsync
+        run: sudo apt-get install -y rsync
 
       - name: Setup SSH Key
         run: |
@@ -19,17 +22,17 @@ jobs:
           echo "${{ secrets.EC2_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
-      - name: Copy files to EC2
+      - name: Copy project files to EC2 (excluding .git and workflows)
         run: |
-          scp -r -o StrictHostKeyChecking=no . ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~/flask-app
+          rsync -avz -e "ssh -o StrictHostKeyChecking=no" \
+          --exclude='.git' \
+          --exclude='.github' \
+          ./ ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~/flask-app
 
-      - name: Run Flask App on EC2
+      - name: Install dependencies & run Flask App on EC2
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
             cd ~/flask-app
-            sudo apt update
-            sudo apt install python3-pip -y
             pip3 install -r requirements.txt
-            pkill -f decision_tree_regression.py || true
             nohup python3 decision_tree_regression.py > app.log 2>&1 &
           EOF
